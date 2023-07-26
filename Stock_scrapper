@@ -1,0 +1,68 @@
+import os
+import requests
+import pandas as pd
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Your Alpha Vantage API key
+API_KEY = "67868ISXYQBXB2O7"
+
+def fetch_realtime_stock_data(symbol):
+    base_url = "https://www.alphavantage.co/query"
+    function = "TIME_SERIES_INTRADAY"
+    interval = "1min"
+    
+    # Construct the API request URL
+    request_url = f"{base_url}?function={function}&symbol={symbol}&interval={interval}&apikey={API_KEY}"
+    
+    # Send the request and get the response
+    try:
+        response = requests.get(request_url)
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as errh:
+        logging.error(f"HTTP Error: {errh}")
+        return None
+    except requests.exceptions.ConnectionError as errc:
+        logging.error(f"Error Connecting: {errc}")
+        return None
+    except requests.exceptions.Timeout as errt:
+        logging.error(f"Timeout Error: {errt}")
+        return None
+    except requests.exceptions.RequestException as err:
+        logging.error(f"Something Else: {err}")
+        return None
+    
+    # Load the response data into a Pandas DataFrame
+    data = response.json()
+    if "Time Series (1min)" not in data:
+        logging.error(f"No data returned for symbol {symbol}")
+        return None
+    
+    df = pd.DataFrame(data['Time Series (1min)']).T
+    df.index = pd.to_datetime(df.index)
+    df = df.sort_index(ascending=True)
+    
+    # Convert the columns to numeric data types
+    for column in df.columns:
+        df[column] = pd.to_numeric(df[column])
+    
+    return df
+
+def main():
+    symbols = ["MSFT", "AAPL", "GOOGL", "AMZN", "FB"]  # List of stock symbols
+    with open("stock_data.txt", 'w') as file:  # Open the text file in write mode
+        for symbol in symbols:
+            print(f"\nFetching data for {symbol}...\n")
+            df = fetch_realtime_stock_data(symbol)
+            if df is not None:
+                # Write the DataFrame to the text file
+                file.write(f"Data for {symbol}:\n")
+                df.to_csv(file, sep='\t')
+                print(df)
+            else:
+                logging.error("No data to display")
+
+if __name__ == "__main__":
+    main()
